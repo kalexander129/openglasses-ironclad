@@ -76,12 +76,37 @@ workflows:
                   CODE_SIGN_STYLE: Manual
                   CODE_SIGN_IDENTITY: "Apple Distribution"
                   PROVISIONING_PROFILE_SPECIFIER: "IronClaw Vision App Store"
+              dependencies:
+                - package: meta-wearables-dat-ios
+                  product: MWDATCore
+                - package: meta-wearables-dat-ios
+                  product: MWDATCamera
+                - package: HaishinKit
+                  product: HaishinKit
+                - package: HaishinKit
+                  product: RTMPHaishinKit
+                - package: mlx-swift-lm
+                  product: MLXLLM
+                - package: mlx-swift-lm
+                  product: MLXLMCommon
+                - package: mlx-swift-lm
+                  product: MLXVLM
+                - package: mlx-swift-lm
+                  product: MLXHuggingFace
+                - package: swift-huggingface
+                  product: HuggingFace
+                - package: swift-transformers
+                  product: Tokenizers
+                - package: SystemNotification
+                  product: SystemNotification
+                - package: WebRTC
+                  product: WebRTC
+                # Removed: - target: GlassesActivityWidget (no provisioning profile)
           schemes:
             OpenGlasses:
               build:
                 targets:
                   OpenGlasses: all
-                  GlassesActivityWidget: none
           YML
           OPENGLASSES_SKIP_WATCH=1 OPENGLASSES_SKIP_TESTS=1 ./Scripts/generate-xcodeproj.sh
 
