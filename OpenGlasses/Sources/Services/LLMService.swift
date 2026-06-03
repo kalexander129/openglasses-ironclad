@@ -906,7 +906,7 @@ class LLMService: ObservableObject {
 
             var body: [String: Any] = [
                 "model": config.model,
-                "max_tokens": includeTools ? 1024 : Config.maxTokens,
+                "max_tokens": Config.maxTokens,  // 500 — safe for small context models
                 "system": systemPrompt,
                 "messages": conversationHistory
             ]
@@ -1119,9 +1119,17 @@ class LLMService: ObservableObject {
             ]
             messages.append(contentsOf: historySlice)
 
+            // Cap max_tokens for models with small context windows (e.g. local VL-72B with 4096 max_model_len)
+            // When tools are included, the system prompt is large (~3000 tokens), so use 500 to stay under budget.
+            let maxTokens: Int
+            if includeTools {
+                maxTokens = Config.maxTokens  // 500 — leaves room for large tool-laden prompts
+            } else {
+                maxTokens = Config.maxTokens
+            }
             var body: [String: Any] = [
                 "model": config.model,
-                "max_tokens": includeTools ? 1024 : Config.maxTokens,
+                "max_tokens": maxTokens,
                 "messages": messages
             ]
 
@@ -1325,7 +1333,7 @@ class LLMService: ObservableObject {
                 ],
                 "contents": contents,
                 "generationConfig": [
-                    "maxOutputTokens": includeTools ? 1024 : Config.maxTokens
+                    "maxOutputTokens": Config.maxTokens  // 500 — safe for small context models
                 ]
             ]
 
