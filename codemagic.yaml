@@ -99,8 +99,7 @@ workflows:
           xcode-project build-ipa \
             --project OpenGlasses.xcodeproj \
             --scheme OpenGlasses \
-            --archive-xcargs "CODE_SIGN_STYLE=Manual DEVELOPMENT_TEAM=" \
-            --skip-macro-validation
+            --archive-xcargs "CODE_SIGN_STYLE=Manual DEVELOPMENT_TEAM="
 
       - name: Export IPA
         script: |
