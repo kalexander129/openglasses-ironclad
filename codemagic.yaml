@@ -1,0 +1,197 @@
+workflows:
+  openglasses-ironclad:
+    name: OpenGlasses IronClad
+    max_build_duration: 60
+    instance_type: mac_mini_m2
+
+    integrations:
+      app_store_connect: Alfred
+
+    environment:
+      ios_signing:
+        distribution_type: app_store
+        bundle_identifier: com.ironclad.openglasses
+      vars:
+        SCHEME: OpenGlasses
+        DEVELOPMENT_TEAM_ID: "VLYY93HRG2"
+        BUILD_NUMBER: "1"
+        # Alfred OpenClaw Gateway
+        ALFRED_GATEWAY_URL: "http://192.168.1.132:18789"
+        OPENCLAW_HOST: "http://192.168.1.132"
+        OPENCLAW_PORT: "18789"
+        OPENCLAW_GATEWAY_TOKEN: "ef54338db231cbb6814f33b5adab687987494ed285fca503"
+        # Local model endpoints
+        VL72B_ENDPOINT: "http://192.168.1.136:8001/v1"
+        DEEPSEEK_ENDPOINT: "http://192.168.1.137:8001/v1"
+        GLM51_ENDPOINT: "https://flbsh4qgrq58n6-8000.proxy.runpod.net/v1"
+        # Meta Wearables SDK (Kyle needs to fill these in)
+        META_APP_ID: "YOUR_META_APP_ID"
+        META_CLIENT_TOKEN: "AR|YOUR_META_APP_ID|YOUR_CLIENT_TOKEN_HASH"
+      xcode: "26.0"
+      cocoapods: default
+
+    triggering:
+      push:
+        branches:
+          - main
+          - ironclad
+
+    scripts:
+      - name: Install XcodeGen
+        script: |
+          brew install xcodegen
+
+      - name: Generate personal config
+        script: |
+          # Create project.local.yml with our team ID
+          cat > $CM_BUILD_DIR/project.local.yml << 'YML'
+          options:
+            developmentTeam: VLYY93HRG2
+
+          targets:
+            OpenGlasses:
+              settings:
+                base:
+                  CODE_SIGN_ENTITLEMENTS: Config/Entitlements/Personal/OpenGlasses.entitlements
+                  DEVELOPMENT_TEAM: VLYY93HRG2
+                  INFOPLIST_FILE: Config/Info/Info.personal.plist
+
+            GlassesActivityWidget:
+              settings:
+                base:
+                  CODE_SIGN_ENTITLEMENTS: Config/Entitlements/Personal/GlassesActivityWidget.entitlements
+                  DEVELOPMENT_TEAM: VLYY93HRG2
+          YML
+
+          # Create personal Info.plist with Meta credentials
+          cat > $CM_BUILD_DIR/Config/Info/Info.personal.plist << PLIST
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0">
+          <dict>
+              <key>MWDAT</key>
+              <dict>
+                  <key>AppLinkURLScheme</key>
+                  <string>https://ironclad.build/glasses</string>
+                  <key>ClientToken</key>
+                  <string>${META_CLIENT_TOKEN}</string>
+                  <key>MetaAppID</key>
+                  <string>${META_APP_ID}</string>
+                  <key>TeamID</key>
+                  <string>$(DEVELOPMENT_TEAM)</string>
+              </dict>
+          </dict>
+          </plist>
+          PLIST
+
+          # Create personal entitlements
+          mkdir -p $CM_BUILD_DIR/Config/Entitlements/Personal
+          cat > $CM_BUILD_DIR/Config/Entitlements/Personal/OpenGlasses.entitlements << ENT
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0">
+          <dict>
+              <key>com.apple.developer.homekit</key>
+              <true/>
+              <key>com.apple.developer.kernel.increased-memory-limit</key>
+              <true/>
+              <key>com.apple.security.application-groups</key>
+              <array>
+                  <string>group.com.openglasses.app</string>
+              </array>
+          </dict>
+          </plist>
+          ENT
+
+          cat > $CM_BUILD_DIR/Config/Entitlements/Personal/GlassesActivityWidget.entitlements << ENT
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0">
+          <dict>
+              <key>com.apple.security.application-groups</key>
+              <array>
+                  <string>group.com.openglasses.app</string>
+              </array>
+          </dict>
+          </plist>
+          ENT
+
+      - name: Generate Xcode project
+        script: |
+          cd $CM_BUILD_DIR
+          ./Scripts/generate-xcodeproj.sh
+
+      - name: Set up code signing
+        script: |
+          xcode-project use-profiles \
+            --project $CM_BUILD_DIR/OpenGlasses.xcodeproj
+
+      - name: Set build number
+        script: |
+          cd $CM_BUILD_DIR
+          agvtool new-version -all "${BUILD_NUMBER}"
+
+      - name: Build iOS App
+        script: |
+          cd $CM_BUILD_DIR
+          xcodebuild \
+            -project OpenGlasses.xcodeproj \
+            -scheme OpenGlasses \
+            -sdk iphoneos \
+            -configuration Release \
+            -archivePath build/OpenGlasses.xcarchive \
+            archive \
+            CODE_SIGN_STYLE=Manual \
+            CODE_SIGN_IDENTITY="Apple Distribution" \
+            DEVELOPMENT_TEAM="${DEVELOPMENT_TEAM_ID}" \
+            PRODUCT_BUNDLE_IDENTIFIER=com.ironclad.openglasses \
+            PROVISIONING_PROFILE_SPECIFIER="IronClaw OpenGlasses App Store"
+
+      - name: Export IPA
+        script: |
+          cd $CM_BUILD_DIR
+          PROFILE_UUID=$(/usr/bin/security cms -D -i ~/Library/MobileDevice/Provisioning\ Profiles/*.mobileprovision 2>/dev/null | grep -A1 UUID | grep -v UUID | head -1 | sed 's/<[^>]*>//g' | tr -d ' \t')
+          echo "Using profile UUID: $PROFILE_UUID"
+          mkdir -p build/IPA
+          cat > build/ExportOptions.plist << PLIST
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0">
+          <dict>
+            <key>method</key>
+            <string>app-store-connect</string>
+            <key>teamID</key>
+            <string>${DEVELOPMENT_TEAM_ID}</string>
+            <key>signingStyle</key>
+            <string>manual</string>
+            <key>provisioningProfiles</key>
+            <dict>
+              <key>com.ironclad.openglasses</key>
+              <string>${PROFILE_UUID}</string>
+            </dict>
+            <key>uploadBitcode</key>
+            <false/>
+            <key>uploadSymbols</key>
+            <true/>
+          </dict>
+          </plist>
+          PLIST
+          xcodebuild \
+            -exportArchive \
+            -archivePath build/OpenGlasses.xcarchive \
+            -exportOptionsPlist build/ExportOptions.plist \
+            -exportPath build/IPA
+
+    artifacts:
+      - build/IPA/*.ipa
+
+    publishing:
+      app_store_connect:
+        auth: integration
+        submit_to_testflight: true
+      email:
+        recipients:
+          - kylelalexander@outlook.com
+        notify:
+          success: true
+          failure: true
