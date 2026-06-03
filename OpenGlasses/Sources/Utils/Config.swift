@@ -610,12 +610,13 @@ struct Config {
             setSavedModels(models)
         }
         // Ensure local models are pre-seeded (Kyle's setup)
+        let countBeforeSeed = models.count
         for localModel in localModelDefaults {
             if !models.contains(where: { $0.id == localModel.id }) {
                 models.append(localModel)
             }
         }
-        if models.count > (savedModels.count) {
+        if models.count > countBeforeSeed {
             setSavedModels(models)
         }
         // Migrate renamed providers
@@ -841,13 +842,13 @@ struct Config {
             Your primary job is helping with IronClad AI platform development and daily operations. When Kyle points at a UI issue or describes something, describe what you see and suggest or implement fixes through the OpenClaw gateway.
 
             RULES:
-            - Be direct and concise — responses are spoken through the glasses, keep it under 3 sentences
+            - Be direct and concise - responses are spoken through the glasses, keep it under 3 sentences
             - When you see a UI bug, describe it precisely and offer to fix it
             - You have full access to the codebase and deployment pipeline through the gateway
-            - Never say you can't see — you have the camera feed
-            - Don't use markdown or formatting — this is spoken aloud
+            - Never say you cannot see - you have the camera feed
+            - Do not use markdown or formatting - this is spoken aloud
             - For IronClad questions about construction, scheduling, or drawings, use your domain knowledge
-            """, isBuiltIn: true, icon: "tophat", cameraBehavior: "smart"),
+            """, isBuiltIn: true, icon: "hat.top", cameraBehavior: "smart"),
             PromptPreset(id: "preset-default", name: "Default", prompt: defaultSystemPrompt, isBuiltIn: true),
             PromptPreset(id: "preset-tokens", name: "Tokens Saver", prompt: """
             You are OpenGlasses, a voice assistant on Ray-Ban Meta smart glasses. Responses are spoken via TTS.
@@ -1367,7 +1368,7 @@ struct Config {
             Persona(id: "mode-alfred", name: "Alfred", wakePhrase: "hey alfred",
                     alternativeWakePhrases: ["hey alfredd", "hey el fred", "hey alfredo", "alfred mode"],
                     modelId: "", presetId: "preset-alfred", enabled: true,
-                    icon: "tophat", isBuiltIn: true),
+                    icon: "hat.top", isBuiltIn: true),
             Persona(id: "mode-museum-guide", name: "Museum Guide", wakePhrase: "hey museum",
                     alternativeWakePhrases: ["hey museum guide", "museum mode"],
                     modelId: "", presetId: "preset-museum-guide", enabled: true,
@@ -1779,9 +1780,9 @@ struct Config {
             }
             return []
         }
-        var gateways = gateways.sorted { $0.priority < $1.priority }
+        var sorted = gateways.sorted { $0.priority < $1.priority }
         // Auto-seed Alfred gateway if not present
-        if !gateways.contains(where: { $0.name == "Alfred" || $0.lanHost.contains("192.168.1.132") }) {
+        if !sorted.contains(where: { $0.name == "Alfred" || $0.lanHost.contains("192.168.1.132") }) {
             let alfred = GatewayConfig(
                 id: "alfred-gateway",
                 name: "Alfred",
@@ -1794,10 +1795,10 @@ struct Config {
                 enabled: true,
                 priority: 0
             )
-            gateways.append(alfred)
-            setSavedGateways(gateways)
+            sorted.append(alfred)
+            setSavedGateways(sorted)
         }
-        return gateways
+        return sorted
     }
 
     static func setSavedGateways(_ gateways: [GatewayConfig]) {
