@@ -42,85 +42,54 @@ workflows:
         script: |
           brew install xcodegen
 
-      - name: Generate personal config
+      - name: Strip on-device ML deps and source files
         script: |
-          # Create project.local.yml with our team ID
-          cat > $CM_BUILD_DIR/project.local.yml << 'YML'
-          options:
-            developmentTeam: VLYY93HRG2
-
-          targets:
-            OpenGlasses:
-              settings:
-                base:
-                  CODE_SIGN_ENTITLEMENTS: Config/Entitlements/Personal/OpenGlasses.entitlements
-                  DEVELOPMENT_TEAM: VLYY93HRG2
-                  INFOPLIST_FILE: Config/Info/Info.personal.plist
-
-            GlassesActivityWidget:
-              settings:
-                base:
-                  CODE_SIGN_ENTITLEMENTS: Config/Entitlements/Personal/GlassesActivityWidget.entitlements
-                  DEVELOPMENT_TEAM: VLYY93HRG2
-          YML
-
-          # Create personal Info.plist with Meta credentials
-          cat > $CM_BUILD_DIR/Config/Info/Info.personal.plist << PLIST
-          <?xml version="1.0" encoding="UTF-8"?>
-          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-          <plist version="1.0">
-          <dict>
-              <key>MWDAT</key>
-              <dict>
-                  <key>AppLinkURLScheme</key>
-                  <string>https://ironclad.build/glasses</string>
-                  <key>ClientToken</key>
-                  <string>${META_CLIENT_TOKEN}</string>
-                  <key>MetaAppID</key>
-                  <string>${META_APP_ID}</string>
-                  <key>TeamID</key>
-                  <string>$(DEVELOPMENT_TEAM)</string>
-              </dict>
-          </dict>
-          </plist>
-          PLIST
-
-          # Create personal entitlements
-          mkdir -p $CM_BUILD_DIR/Config/Entitlements/Personal
-          cat > $CM_BUILD_DIR/Config/Entitlements/Personal/OpenGlasses.entitlements << ENT
-          <?xml version="1.0" encoding="UTF-8"?>
-          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-          <plist version="1.0">
-          <dict>
-              <key>com.apple.developer.homekit</key>
-              <true/>
-              <key>com.apple.developer.kernel.increased-memory-limit</key>
-              <true/>
-              <key>com.apple.security.application-groups</key>
-              <array>
-                  <string>group.com.openglasses.app</string>
-              </array>
-          </dict>
-          </plist>
-          ENT
-
-          cat > $CM_BUILD_DIR/Config/Entitlements/Personal/GlassesActivityWidget.entitlements << ENT
-          <?xml version="1.0" encoding="UTF-8"?>
-          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-          <plist version="1.0">
-          <dict>
-              <key>com.apple.security.application-groups</key>
-              <array>
-                  <string>group.com.openglasses.app</string>
-              </array>
-          </dict>
-          </plist>
-          ENT
+          cd $CM_BUILD_DIR
+          # Remove MLX/HF/SwiftTransformers package deps from project.base.yml
+          # We use remote models — no on-device inference needed
+          # This avoids the Swift Macro build failure (MLXHuggingFaceMacros)
+          python3 -c "
+          import re
+          with open('project.base.yml') as f: content = f.read()
+          # Remove package declarations
+          for pkg in ['mlx-swift-lm', 'swift-huggingface', 'swift-transformers']:
+              pattern = r'  ' + pkg + r':\n    url:.*?\n    (from|version):.*?\n'
+              content = re.sub(pattern, '', content)
+          # Remove target dependency lines
+          for dep in ['mlx-swift-lm', 'swift-huggingface', 'swift-transformers']:
+              pattern = r'      - package: ' + dep + r'\n        product:.*?\n'
+              content = re.sub(pattern, '', content)
+          with open('project.base.yml', 'w') as f: f.write(content)
+          print('Stripped MLX/HF deps from project.base.yml')
+          "
+          # Remove source files that import MLX
+          rm -f OpenGlasses/Sources/Services/LocalLLMService.swift
+          rm -f OpenGlasses/Sources/Models/Gemma4Text.swift
+          # Comment out MLX imports in remaining files
+          sed -i.bak 's/^import MLXLLM/\/\/ import MLXLLM  -- removed for remote-only build/' OpenGlasses/Sources/OpenGlassesApp.swift
+          # Comment out any references to removed types
+          find OpenGlasses/Sources -name "*.swift" -exec sed -i.bak 's/Gemma4Text/\/\/ Gemma4Text -- removed/' {} \;
+          find OpenGlasses/Sources -name "*.swift" -exec sed -i.bak 's/LocalLLMService/\/\/ LocalLLMService -- removed/' {} \;
+          echo "Stripped on-device ML source files"
 
       - name: Generate Xcode project
         script: |
           cd $CM_BUILD_DIR
-          ./Scripts/generate-xcodeproj.sh
+          # Create project.local.yml with team ID
+          cat > project.local.yml << 'YML'
+          options:
+            developmentTeam: VLYY93HRG2
+          targets:
+            OpenGlasses:
+              settings:
+                base:
+                  DEVELOPMENT_TEAM: VLYY93HRG2
+            GlassesActivityWidget:
+              settings:
+                base:
+                  DEVELOPMENT_TEAM: VLYY93HRG2
+          YML
+          OPENGLASSES_SKIP_WATCH=1 OPENGLASSES_SKIP_TESTS=1 ./Scripts/generate-xcodeproj.sh
 
       - name: Set up code signing
         script: |
