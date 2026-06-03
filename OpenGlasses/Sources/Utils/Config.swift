@@ -638,8 +638,8 @@ struct Config {
             name: "VL-72B (Vision)",
             provider: LLMProvider.custom.rawValue,
             apiKey: "local",
-            model: "vl72b",
-            baseURL: "http://192.168.1.136:8001/v1/chat/completions",
+            model: "vl-72b",
+            baseURL: "http://192.168.1.136:8000/v1",
             supportsVision: true
         ),
         ModelConfig(
@@ -648,7 +648,7 @@ struct Config {
             provider: LLMProvider.custom.rawValue,
             apiKey: "sk-ironclad",
             model: "glm51",
-            baseURL: "https://flbsh4qgrq58n6-8000.proxy.runpod.net/v1/chat/completions",
+            baseURL: "https://flbsh4qgrq58n6-8000.proxy.runpod.net/v1",
             supportsVision: false
         ),
     ]
