@@ -72,10 +72,14 @@ workflows:
               settings:
                 base:
                   DEVELOPMENT_TEAM: VLYY93HRG2
+                  PRODUCT_BUNDLE_IDENTIFIER: com.ironclad.visionclaw
+                  CODE_SIGN_STYLE: Manual
             GlassesActivityWidget:
               settings:
                 base:
                   DEVELOPMENT_TEAM: VLYY93HRG2
+                  PRODUCT_BUNDLE_IDENTIFIER: com.ironclad.visionclaw.GlassesActivityWidget
+                  CODE_SIGN_STYLE: Manual
           YML
           OPENGLASSES_SKIP_WATCH=1 OPENGLASSES_SKIP_TESTS=1 ./Scripts/generate-xcodeproj.sh
 
@@ -104,7 +108,11 @@ workflows:
             -archivePath build/OpenGlasses.xcarchive \
             -skipMacroValidation \
             archive \
-            DEVELOPMENT_TEAM="${DEVELOPMENT_TEAM_ID}"
+            -allowProvisioningUpdates \
+            DEVELOPMENT_TEAM="${DEVELOPMENT_TEAM_ID}" \
+            PRODUCT_BUNDLE_IDENTIFIER=com.ironclad.visionclaw \
+            CODE_SIGN_STYLE=Manual \
+            CODE_SIGN_IDENTITY="Apple Distribution"
 
       - name: Export IPA
         script: |
