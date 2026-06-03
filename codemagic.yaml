@@ -39,6 +39,11 @@ workflows:
         script: |
           brew install xcodegen
 
+      - name: Download Metal Toolchain
+        script: |
+          # Xcode 26 unbundled the Metal shader compiler — must download separately
+          xcodebuild -downloadComponent MetalToolchain
+
       - name: Trust Swift Macros (CI workaround)
         script: |
           defaults write com.apple.dt.Xcode IDESkipPackagePluginFingerprintValidatation -bool YES
