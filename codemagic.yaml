@@ -41,17 +41,29 @@ workflows:
 
       - name: Trust Swift Macros (CI workaround)
         script: |
-          # Swift Macros require explicit trust via GUI dialog on first use.
-          # CI environments can't show dialogs, so we bypass validation.
-          # This is the standard fix for all CI/CD (Xcode Cloud, Bitrise, Codemagic).
           defaults write com.apple.dt.Xcode IDESkipPackagePluginFingerprintValidatation -bool YES
           defaults write com.apple.dt.Xcode IDESkipMacroFingerprintValidation -bool YES
-          echo "Swift Macro validation bypassed for CI build"
+
+      - name: Patch project for CI build
+        script: |
+          cd $CM_BUILD_DIR
+          # Remove capabilities the provisioning profile doesn't support
+          python3 << 'PYEOF'
+          import re
+          with open('project.base.yml') as f:
+              content = f.read()
+          content = content.replace('com.apple.developer.homekit: true', '# removed for CI')
+          content = content.replace('com.apple.developer.carplay-voice-based-conversation: true', '# removed for CI')
+          content = content.replace('com.apple.developer.kernel.increased-memory-limit: true', '# removed for CI')
+          content = re.sub(r'        com\.apple\.security\.application-groups:\n          - group\.com\.openglasses\.app\n', '', content)
+          with open('project.base.yml', 'w') as f:
+              f.write(content)
+          print('Patched project.base.yml')
+          PYEOF
 
       - name: Generate Xcode project
         script: |
           cd $CM_BUILD_DIR
-          # Create project.local.yml with team ID and entitlement overrides
           cat > project.local.yml << 'YML'
           options:
             developmentTeam: VLYY93HRG2
@@ -69,6 +81,9 @@ workflows:
 
       - name: Set up code signing
         script: |
+          # Set up signing profiles — but DON'T force Manual on SPM targets
+          # The project.base.yml already sets CODE_SIGN_STYLE: Automatic
+          # which works for both app and SPM targets
           xcode-project use-profiles --project $CM_BUILD_DIR/OpenGlasses.xcodeproj
 
       - name: Set build number
@@ -79,19 +94,18 @@ workflows:
       - name: Build iOS App
         script: |
           cd $CM_BUILD_DIR
+          # Build with automatic signing for SPM targets, manual for app
+          # -skipMacroValidation: trust Swift Macros without GUI dialog
           xcodebuild \
             -project OpenGlasses.xcodeproj \
             -scheme OpenGlasses \
             -sdk iphoneos \
             -configuration Release \
             -archivePath build/OpenGlasses.xcarchive \
-            archive \
             -skipMacroValidation \
-            CODE_SIGN_STYLE=Manual \
-            CODE_SIGN_IDENTITY="Apple Distribution" \
+            archive \
             DEVELOPMENT_TEAM="${DEVELOPMENT_TEAM_ID}" \
-            PRODUCT_BUNDLE_IDENTIFIER=com.ironclad.visionclaw \
-            PROVISIONING_PROFILE_SPECIFIER="IronClaw Vision App Store"
+            CODE_SIGN_IDENTITY="Apple Distribution"
 
       - name: Export IPA
         script: |
@@ -109,12 +123,7 @@ workflows:
             <key>teamID</key>
             <string>${DEVELOPMENT_TEAM_ID}</string>
             <key>signingStyle</key>
-            <string>manual</string>
-            <key>provisioningProfiles</key>
-            <dict>
-              <key>com.ironclad.visionclaw</key>
-              <string>${PROFILE_UUID}</string>
-            </dict>
+            <string>automatic</string>
             <key>uploadBitcode</key>
             <false/>
             <key>uploadSymbols</key>
