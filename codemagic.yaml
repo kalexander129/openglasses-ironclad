@@ -14,7 +14,7 @@ workflows:
       vars:
         SCHEME: OpenGlasses
         DEVELOPMENT_TEAM_ID: "VLYY93HRG2"
-        BUILD_NUMBER: "3"
+        BUILD_NUMBER: "4"
         ALFRED_GATEWAY_URL: "http://192.168.1.132:18789"
         OPENCLAW_HOST: "http://192.168.1.132"
         OPENCLAW_PORT: "18789"
