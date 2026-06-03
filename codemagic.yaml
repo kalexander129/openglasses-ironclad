@@ -74,21 +74,22 @@ workflows:
                   DEVELOPMENT_TEAM: VLYY93HRG2
                   PRODUCT_BUNDLE_IDENTIFIER: com.ironclad.visionclaw
                   CODE_SIGN_STYLE: Manual
+                  CODE_SIGN_IDENTITY: "Apple Distribution"
+                  PROVISIONING_PROFILE_SPECIFIER: "IronClaw Vision App Store"
             GlassesActivityWidget:
               settings:
                 base:
                   DEVELOPMENT_TEAM: VLYY93HRG2
                   PRODUCT_BUNDLE_IDENTIFIER: com.ironclad.visionclaw.GlassesActivityWidget
                   CODE_SIGN_STYLE: Manual
+                  CODE_SIGN_IDENTITY: "Apple Distribution"
+                  PROVISIONING_PROFILE_SPECIFIER: "IronClaw Vision App Store"
           YML
           OPENGLASSES_SKIP_WATCH=1 OPENGLASSES_SKIP_TESTS=1 ./Scripts/generate-xcodeproj.sh
 
       - name: Set up code signing
         script: |
-          # Skip xcode-project use-profiles — it forces Manual signing on ALL targets
-          # including SPM packages, which causes conflicts. Codemagic's ios_signing
-          # config + the project's Automatic signing handle the app target.
-          echo "Skipping use-profiles to avoid SPM signing conflicts"
+          xcode-project use-profiles --project $CM_BUILD_DIR/OpenGlasses.xcodeproj
 
       - name: Set build number
         script: |
@@ -108,11 +109,7 @@ workflows:
             -archivePath build/OpenGlasses.xcarchive \
             -skipMacroValidation \
             archive \
-            -allowProvisioningUpdates \
-            DEVELOPMENT_TEAM="${DEVELOPMENT_TEAM_ID}" \
-            PRODUCT_BUNDLE_IDENTIFIER=com.ironclad.visionclaw \
-            CODE_SIGN_STYLE=Manual \
-            CODE_SIGN_IDENTITY="Apple Distribution"
+            -allowProvisioningUpdates
 
       - name: Export IPA
         script: |
