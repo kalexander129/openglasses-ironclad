@@ -31,10 +31,11 @@ workflows:
       cocoapods: default
 
     triggering:
-      push:
-        branches:
-          - main
-          - ironclad
+      events:
+        - push
+      branch_patterns:
+        - pattern: main
+        - pattern: ironclad
 
     scripts:
       - name: Install XcodeGen
