@@ -418,6 +418,8 @@ struct Config {
     /// Default alternative spellings for common wake phrases
     static func defaultAlternativesForPhrase(_ phrase: String) -> [String] {
         switch phrase.lowercased() {
+        case "hey alfred":
+            return ["hey alfredd", "hey el fred", "hey alfredo", "hey all red"]
         case "hey claude":
             return ["hey cloud", "hey claud", "hey clod", "hey clawed", "hey claudia"]
         case "hey jarvis":
@@ -533,8 +535,8 @@ struct Config {
         var fallbackKeywords: [String] {
             switch self {
             case .fast: return ["haiku", "flash", "mini", "4o-mini", "gpt-4o-mini", "llama", "mixtral"]
-            case .balanced: return ["sonnet", "gpt-4o", "gemini-pro", "gemini-2"]
-            case .best: return ["opus", "o3", "o1", "pro", "gpt-4-turbo"]
+            case .balanced: return ["sonnet", "gpt-4o", "gemini-pro", "gemini-2", "vl-72b", "vl72b"]
+            case .best: return ["opus", "o3", "o1", "pro", "gpt-4-turbo", "glm-5.1", "glm51"]
             }
         }
     }
@@ -607,6 +609,15 @@ struct Config {
             models.append(appleIntelligenceDefault)
             setSavedModels(models)
         }
+        // Ensure local models are pre-seeded (Kyle's setup)
+        for localModel in localModelDefaults {
+            if !models.contains(where: { $0.id == localModel.id }) {
+                models.append(localModel)
+            }
+        }
+        if models.count > (savedModels.count) {
+            setSavedModels(models)
+        }
         // Migrate renamed providers
         var needsSave = false
         for i in models.indices {
@@ -620,6 +631,27 @@ struct Config {
     }
 
     /// Pre-configured Apple Intelligence model — zero setup, on-device.
+    static let localModelDefaults: [ModelConfig] = [
+        ModelConfig(
+            id: "local-vl72b",
+            name: "VL-72B (Vision)",
+            provider: LLMProvider.custom.rawValue,
+            apiKey: "local",
+            model: "vl72b",
+            baseURL: "http://192.168.1.136:8001/v1/chat/completions",
+            supportsVision: true
+        ),
+        ModelConfig(
+            id: "local-glm51",
+            name: "GLM-5.1 (RunPod)",
+            provider: LLMProvider.custom.rawValue,
+            apiKey: "sk-ironclad",
+            model: "glm51",
+            baseURL: "https://flbsh4qgrq58n6-8000.proxy.runpod.net/v1/chat/completions",
+            supportsVision: false
+        ),
+    ]
+
     static let appleIntelligenceDefault = ModelConfig(
         id: "apple-intelligence",
         name: "Apple Intelligence",
@@ -803,6 +835,19 @@ struct Config {
             return chineseBuiltInPresets()
         }
         return [
+            PromptPreset(id: "preset-alfred", name: "Alfred", prompt: """
+            You are Alfred, Kyle Alexander's personal AI assistant. You are connected through his Meta Ray-Ban smart glasses. You can see what he sees and hear what he says.
+
+            Your primary job is helping with IronClad AI platform development and daily operations. When Kyle points at a UI issue or describes something, describe what you see and suggest or implement fixes through the OpenClaw gateway.
+
+            RULES:
+            - Be direct and concise — responses are spoken through the glasses, keep it under 3 sentences
+            - When you see a UI bug, describe it precisely and offer to fix it
+            - You have full access to the codebase and deployment pipeline through the gateway
+            - Never say you can't see — you have the camera feed
+            - Don't use markdown or formatting — this is spoken aloud
+            - For IronClad questions about construction, scheduling, or drawings, use your domain knowledge
+            """, isBuiltIn: true, icon: "tophat", cameraBehavior: "smart"),
             PromptPreset(id: "preset-default", name: "Default", prompt: defaultSystemPrompt, isBuiltIn: true),
             PromptPreset(id: "preset-tokens", name: "Tokens Saver", prompt: """
             You are OpenGlasses, a voice assistant on Ray-Ban Meta smart glasses. Responses are spoken via TTS.
@@ -1319,6 +1364,10 @@ struct Config {
     /// Each template uses `activeModelId` so it works with whatever model the user has configured.
     static func builtInPersonaTemplates() -> [Persona] {
         [
+            Persona(id: "mode-alfred", name: "Alfred", wakePhrase: "hey alfred",
+                    alternativeWakePhrases: ["hey alfredd", "hey el fred", "hey alfredo", "alfred mode"],
+                    modelId: "", presetId: "preset-alfred", enabled: true,
+                    icon: "tophat", isBuiltIn: true),
             Persona(id: "mode-museum-guide", name: "Museum Guide", wakePhrase: "hey museum",
                     alternativeWakePhrases: ["hey museum guide", "museum mode"],
                     modelId: "", presetId: "preset-museum-guide", enabled: true,
@@ -1730,7 +1779,25 @@ struct Config {
             }
             return []
         }
-        return gateways.sorted { $0.priority < $1.priority }
+        var gateways = gateways.sorted { $0.priority < $1.priority }
+        // Auto-seed Alfred gateway if not present
+        if !gateways.contains(where: { $0.name == "Alfred" || $0.lanHost.contains("192.168.1.132") }) {
+            let alfred = GatewayConfig(
+                id: "alfred-gateway",
+                name: "Alfred",
+                provider: GatewayProvider.openclaw.rawValue,
+                lanHost: "http://192.168.1.132",
+                port: 18789,
+                tunnelHost: "",
+                token: "ef54338db231cbb6814f33b5adab687987494ed285fca503",
+                connectionMode: "lan",
+                enabled: true,
+                priority: 0
+            )
+            gateways.append(alfred)
+            setSavedGateways(gateways)
+        }
+        return gateways
     }
 
     static func setSavedGateways(_ gateways: [GatewayConfig]) {
