@@ -10,7 +10,7 @@ workflows:
     environment:
       ios_signing:
         distribution_type: app_store
-        bundle_identifier: com.ironclad.openglasses
+        bundle_identifier: com.ironclad.visionclaw
       vars:
         SCHEME: OpenGlasses
         DEVELOPMENT_TEAM_ID: "VLYY93HRG2"
@@ -145,8 +145,8 @@ workflows:
             CODE_SIGN_STYLE=Manual \
             CODE_SIGN_IDENTITY="Apple Distribution" \
             DEVELOPMENT_TEAM="${DEVELOPMENT_TEAM_ID}" \
-            PRODUCT_BUNDLE_IDENTIFIER=com.ironclad.openglasses \
-            PROVISIONING_PROFILE_SPECIFIER="IronClaw OpenGlasses App Store"
+            PRODUCT_BUNDLE_IDENTIFIER=com.ironclad.visionclaw \
+            PROVISIONING_PROFILE_SPECIFIER="IronClaw Vision App Store"
 
       - name: Export IPA
         script: |
@@ -167,7 +167,7 @@ workflows:
             <string>manual</string>
             <key>provisioningProfiles</key>
             <dict>
-              <key>com.ironclad.openglasses</key>
+              <key>com.ironclad.visionclaw</key>
               <string>${PROFILE_UUID}</string>
             </dict>
             <key>uploadBitcode</key>
