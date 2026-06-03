@@ -39,80 +39,19 @@ workflows:
         script: |
           brew install xcodegen
 
-      - name: Prepare project for remote-only build
+      - name: Trust Swift Macros (CI workaround)
         script: |
-          cd $CM_BUILD_DIR
-          echo "=== Build dir: $(pwd) ==="
-          echo "=== Listing MLX-dependent files ==="
-          find . -name "Gemma4Text.swift" -o -name "LocalLLMService.swift" -o -name "LocalModelManagerView.swift" -o -name "LLMService.swift" -o -name "AgenticFeaturesView.swift" | head -20
-
-          # 1. Remove MLX/HF/SwiftTransformers from project.base.yml
-          python3 << 'PYEOF'
-          import re
-          with open('project.base.yml') as f:
-              content = f.read()
-          for pkg in ['mlx-swift-lm', 'swift-huggingface', 'swift-transformers']:
-              pattern = r'  ' + pkg + r':\n    url:.*?\n    (from|version):.*?\n'
-              content = re.sub(pattern, '', content)
-          for dep in ['mlx-swift-lm', 'swift-huggingface', 'swift-transformers']:
-              pattern = r'      - package: ' + dep + r'\n        product:.*?\n'
-              content = re.sub(pattern, '', content)
-          content = content.replace('com.apple.developer.homekit: true', '# removed')
-          content = content.replace('com.apple.developer.carplay-voice-based-conversation: true', '# removed')
-          content = content.replace('com.apple.developer.kernel.increased-memory-limit: true', '# removed')
-          content = re.sub(r'        com\.apple\.security\.application-groups:\n          - group\.com\.openglasses\.app\n', '', content)
-          with open('project.base.yml', 'w') as f:
-              f.write(content)
-          print('Updated project.base.yml')
-          PYEOF
-
-          # 2. Remove ALL source files that import MLX/HF - use find to be sure
-          echo "=== Removing MLX-dependent files ==="
-          find . -name "Gemma4Text.swift" -type f -delete -print
-          find . -name "LocalLLMService.swift" -type f -delete -print
-          find . -name "LocalModelManagerView.swift" -type f -delete -print
-          find . -name "LLMService.swift" -type f -delete -print
-          find . -name "AgenticFeaturesView.swift" -type f -delete -print
-          find . -name "ModelFormView.swift" -type f -delete -print
-          find . -name "AgentScheduler.swift" -type f -delete -print
-          find . -name "SettingsView.swift" -type f -delete -print
-          find . -name "VoiceTab.swift" -type f -delete -print
-
-          # 3. Stub LLMService
-          cat > OpenGlasses/Sources/Services/LLMService.swift << 'STUB'
-          import Foundation
-          @MainActor
-          class LLMService: ObservableObject {
-              static let shared = LLMService()
-              var isModelLoaded: Bool { true }
-              var isLoading: Bool { false }
-              func loadModel() async { }
-              func generate(_ prompt: String) async -> String { "" }
-          }
-          STUB
-
-          # 4. Remove MLX imports from ALL remaining Swift files
-          find OpenGlasses/Sources -name "*.swift" -exec sed -i '' 's/^import MLXLLM/\/\/ import MLXLLM/' {} \;
-          find OpenGlasses/Sources -name "*.swift" -exec sed -i '' 's/^import MLX$/\/\/ import MLX/' {} \;
-          find OpenGlasses/Sources -name "*.swift" -exec sed -i '' 's/^import HuggingFace/\/\/ import HuggingFace/' {} \;
-          find OpenGlasses/Sources -name "*.swift" -exec sed -i '' 's/^import Tokenizers/\/\/ import Tokenizers/' {} \;
-          find OpenGlasses/Sources -name "*.swift" -exec sed -i '' 's/Gemma4Text/\/\/ Gemma4Temp/' {} \;
-          find OpenGlasses/Sources -name "*.swift" -exec sed -i '' 's/LocalLLMService/\/\/ LocalLLMService/' {} \;
-          find OpenGlasses/Sources -name "*.swift" -exec sed -i '' 's/LocalModelManagerView/\/\/ LocalModelManagerView/' {} \;
-          find OpenGlasses/Sources -name "*.swift" -exec sed -i '' 's/AgenticFeaturesView/\/\/ AgenticFeaturesView/' {} \;
-          find OpenGlasses/Sources -name "*.swift" -exec sed -i '' 's/ModelFormView/\/\/ ModelFormView/' {} \;
-          find OpenGlasses/Sources -name "*.swift" -exec sed -i '' 's/AgentScheduler/\/\/ AgentScheduler/' {} \;
-          find OpenGlasses/Sources -name "*.swift" -exec sed -i '' 's/SettingsView/\/\/ SettingsView/' {} \;
-          find OpenGlasses/Sources -name "*.swift" -exec sed -i '' 's/VoiceTab/\/\/ VoiceTab/' {} \;
-
-          echo "=== Verifying removal ==="
-          find . -name "Gemma4Text.swift" -o -name "LocalLLMService.swift" | head -5
-          grep -r "import MLX" OpenGlasses/Sources/ | head -5 || echo "No MLX imports remaining"
-          echo "=== Done ==="
+          # Swift Macros require explicit trust via GUI dialog on first use.
+          # CI environments can't show dialogs, so we bypass validation.
+          # This is the standard fix for all CI/CD (Xcode Cloud, Bitrise, Codemagic).
+          defaults write com.apple.dt.Xcode IDESkipPackagePluginFingerprintValidatation -bool YES
+          defaults write com.apple.dt.Xcode IDESkipMacroFingerprintValidation -bool YES
+          echo "Swift Macro validation bypassed for CI build"
 
       - name: Generate Xcode project
         script: |
           cd $CM_BUILD_DIR
+          # Create project.local.yml with team ID and entitlement overrides
           cat > project.local.yml << 'YML'
           options:
             developmentTeam: VLYY93HRG2
@@ -147,6 +86,7 @@ workflows:
             -configuration Release \
             -archivePath build/OpenGlasses.xcarchive \
             archive \
+            -skipMacroValidation \
             CODE_SIGN_STYLE=Manual \
             CODE_SIGN_IDENTITY="Apple Distribution" \
             DEVELOPMENT_TEAM="${DEVELOPMENT_TEAM_ID}" \
