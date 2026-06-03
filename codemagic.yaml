@@ -64,6 +64,20 @@ workflows:
       - name: Generate Xcode project
         script: |
           cd $CM_BUILD_DIR
+          # Remove widget target entirely from project.base.yml — no profile for it
+          python3 << 'PYEOF'
+          import re
+          with open('project.base.yml') as f:
+              content = f.read()
+          # Remove the GlassesActivityWidget target definition
+          widget_pattern = r'  GlassesActivityWidget:.*?(?=\n[a-z]|\nschemes:|$)'
+          content = re.sub(widget_pattern, '', content, flags=re.DOTALL)
+          # Remove widget dependency from OpenGlasses target
+          content = re.sub(r'      - target: GlassesActivityWidget\n', '', content)
+          with open('project.base.yml', 'w') as f:
+              f.write(content)
+          print('Removed GlassesActivityWidget from project.base.yml')
+          PYEOF
           cat > project.local.yml << 'YML'
           options:
             developmentTeam: VLYY93HRG2
@@ -73,11 +87,6 @@ workflows:
                 base:
                   DEVELOPMENT_TEAM: VLYY93HRG2
                   PRODUCT_BUNDLE_IDENTIFIER: com.ironclad.visionclaw
-            GlassesActivityWidget:
-              settings:
-                base:
-                  DEVELOPMENT_TEAM: VLYY93HRG2
-                  PRODUCT_BUNDLE_IDENTIFIER: com.ironclad.visionclaw.GlassesActivityWidget
           YML
           OPENGLASSES_SKIP_WATCH=1 OPENGLASSES_SKIP_TESTS=1 ./Scripts/generate-xcodeproj.sh
 
