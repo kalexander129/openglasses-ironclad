@@ -76,14 +76,6 @@ workflows:
                   CODE_SIGN_STYLE: Manual
                   CODE_SIGN_IDENTITY: "Apple Distribution"
                   PROVISIONING_PROFILE_SPECIFIER: "IronClaw Vision App Store"
-            GlassesActivityWidget:
-              settings:
-                base:
-                  DEVELOPMENT_TEAM: VLYY93HRG2
-                  PRODUCT_BUNDLE_IDENTIFIER: com.ironclad.visionclaw.GlassesActivityWidget
-                  CODE_SIGN_STYLE: Manual
-                  CODE_SIGN_IDENTITY: "Apple Distribution"
-                  PROVISIONING_PROFILE_SPECIFIER: "IronClaw Vision App Store"
           YML
           OPENGLASSES_SKIP_WATCH=1 OPENGLASSES_SKIP_TESTS=1 ./Scripts/generate-xcodeproj.sh
 
@@ -103,7 +95,7 @@ workflows:
           # -skipMacroValidation: trust Swift Macros without GUI dialog
           xcodebuild \
             -project OpenGlasses.xcodeproj \
-            -scheme OpenGlasses \
+            -target OpenGlasses \
             -sdk iphoneos \
             -configuration Release \
             -archivePath build/OpenGlasses.xcarchive \
