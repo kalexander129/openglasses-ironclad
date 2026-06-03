@@ -73,40 +73,11 @@ workflows:
                 base:
                   DEVELOPMENT_TEAM: VLYY93HRG2
                   PRODUCT_BUNDLE_IDENTIFIER: com.ironclad.visionclaw
-                  CODE_SIGN_STYLE: Manual
-                  CODE_SIGN_IDENTITY: "Apple Distribution"
-                  PROVISIONING_PROFILE_SPECIFIER: "IronClaw Vision App Store"
-              dependencies:
-                - package: meta-wearables-dat-ios
-                  product: MWDATCore
-                - package: meta-wearables-dat-ios
-                  product: MWDATCamera
-                - package: HaishinKit
-                  product: HaishinKit
-                - package: HaishinKit
-                  product: RTMPHaishinKit
-                - package: mlx-swift-lm
-                  product: MLXLLM
-                - package: mlx-swift-lm
-                  product: MLXLMCommon
-                - package: mlx-swift-lm
-                  product: MLXVLM
-                - package: mlx-swift-lm
-                  product: MLXHuggingFace
-                - package: swift-huggingface
-                  product: HuggingFace
-                - package: swift-transformers
-                  product: Tokenizers
-                - package: SystemNotification
-                  product: SystemNotification
-                - package: WebRTC
-                  product: WebRTC
-                # Removed: - target: GlassesActivityWidget (no provisioning profile)
-          schemes:
-            OpenGlasses:
-              build:
-                targets:
-                  OpenGlasses: all
+            GlassesActivityWidget:
+              settings:
+                base:
+                  DEVELOPMENT_TEAM: VLYY93HRG2
+                  PRODUCT_BUNDLE_IDENTIFIER: com.ironclad.visionclaw.GlassesActivityWidget
           YML
           OPENGLASSES_SKIP_WATCH=1 OPENGLASSES_SKIP_TESTS=1 ./Scripts/generate-xcodeproj.sh
 
@@ -122,17 +93,14 @@ workflows:
       - name: Build iOS App
         script: |
           cd $CM_BUILD_DIR
-          # Build with automatic signing for SPM targets, manual for app
-          # -skipMacroValidation: trust Swift Macros without GUI dialog
-          xcodebuild \
-            -project OpenGlasses.xcodeproj \
-            -scheme OpenGlasses \
-            -sdk iphoneos \
-            -configuration Release \
-            -archivePath build/OpenGlasses.xcarchive \
-            -skipMacroValidation \
-            archive \
-            -allowProvisioningUpdates
+          # xcode-project build-ipa handles SPM signing conflicts properly
+          # --archive-xcargs passes CODE_SIGN_STYLE=Manual only to archive, not SPM targets
+          # This is the recommended fix per Codemagic blog for SPM + Xcode 14+ signing
+          xcode-project build-ipa \
+            --project OpenGlasses.xcodeproj \
+            --scheme OpenGlasses \
+            --archive-xcargs "CODE_SIGN_STYLE=Manual DEVELOPMENT_TEAM=" \
+            --skip-macro-validation
 
       - name: Export IPA
         script: |
@@ -150,7 +118,12 @@ workflows:
             <key>teamID</key>
             <string>${DEVELOPMENT_TEAM_ID}</string>
             <key>signingStyle</key>
-            <string>automatic</string>
+            <string>manual</string>
+            <key>provisioningProfiles</key>
+            <dict>
+              <key>com.ironclad.visionclaw</key>
+              <string>${PROFILE_UUID}</string>
+            </dict>
             <key>uploadBitcode</key>
             <false/>
             <key>uploadSymbols</key>
