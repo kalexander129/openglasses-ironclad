@@ -19,7 +19,7 @@ workflows:
         OPENCLAW_HOST: "http://192.168.1.132"
         OPENCLAW_PORT: "18789"
         OPENCLAW_GATEWAY_TOKEN: "ef54338db231cbb6814f33b5adab687987494ed285fca503"
-        VL72B_ENDPOINT: "http://192.192.168.1.136:8001/v1"
+        VL72B_ENDPOINT: "http://192.168.1.136:8001/v1"
         DEEPSEEK_ENDPOINT: "http://192.168.1.137:8001/v1"
         GLM51_ENDPOINT: "https://flbsh4qgrq58n6-8000.proxy.runpod.net/v1"
         META_APP_ID: "YOUR_META_APP_ID"
@@ -42,20 +42,21 @@ workflows:
       - name: Prepare project for remote-only build
         script: |
           cd $CM_BUILD_DIR
+          echo "=== Build dir: $(pwd) ==="
+          echo "=== Listing MLX-dependent files ==="
+          find . -name "Gemma4Text.swift" -o -name "LocalLLMService.swift" -o -name "LocalModelManagerView.swift" -o -name "LLMService.swift" -o -name "AgenticFeaturesView.swift" | head -20
+
           # 1. Remove MLX/HF/SwiftTransformers from project.base.yml
           python3 << 'PYEOF'
           import re
           with open('project.base.yml') as f:
               content = f.read()
-          # Remove package declarations
           for pkg in ['mlx-swift-lm', 'swift-huggingface', 'swift-transformers']:
               pattern = r'  ' + pkg + r':\n    url:.*?\n    (from|version):.*?\n'
               content = re.sub(pattern, '', content)
-          # Remove target dependency lines
           for dep in ['mlx-swift-lm', 'swift-huggingface', 'swift-transformers']:
               pattern = r'      - package: ' + dep + r'\n        product:.*?\n'
               content = re.sub(pattern, '', content)
-          # Strip capabilities the provisioning profile doesn't support
           content = content.replace('com.apple.developer.homekit: true', '# removed')
           content = content.replace('com.apple.developer.carplay-voice-based-conversation: true', '# removed')
           content = content.replace('com.apple.developer.kernel.increased-memory-limit: true', '# removed')
@@ -65,17 +66,21 @@ workflows:
           print('Updated project.base.yml')
           PYEOF
 
-          # 2. Remove source files that depend on MLX/HF
-          rm -f OpenGlasses/Sources/Services/LocalLLMService.swift
-          rm -f OpenGlasses/Sources/Models/Gemma4Text.swift
-          rm -f OpenGlasses/Sources/App/Views/LocalModelManagerView.swift
-          rm -f OpenGlasses/Sources/Services/LLMService.swift
+          # 2. Remove ALL source files that import MLX/HF - use find to be sure
+          echo "=== Removing MLX-dependent files ==="
+          find . -name "Gemma4Text.swift" -type f -delete -print
+          find . -name "LocalLLMService.swift" -type f -delete -print
+          find . -name "LocalModelManagerView.swift" -type f -delete -print
+          find . -name "LLMService.swift" -type f -delete -print
+          find . -name "AgenticFeaturesView.swift" -type f -delete -print
+          find . -name "ModelFormView.swift" -type f -delete -print
+          find . -name "AgentScheduler.swift" -type f -delete -print
+          find . -name "SettingsView.swift" -type f -delete -print
+          find . -name "VoiceTab.swift" -type f -delete -print
 
-          # 3. Create stub files that replace the removed functionality
-          # Stub LLMService - routes to remote API instead
+          # 3. Stub LLMService
           cat > OpenGlasses/Sources/Services/LLMService.swift << 'STUB'
           import Foundation
-          // Remote-only LLM Service stub — on-device ML stripped for this build
           @MainActor
           class LLMService: ObservableObject {
               static let shared = LLMService()
@@ -86,22 +91,24 @@ workflows:
           }
           STUB
 
-          # 4. Remove MLX imports and references from remaining files
-          for f in $(find OpenGlasses/Sources -name "*.swift"); do
-            # Comment out MLX/HF imports
-            sed -i.bak 's/^import MLXLLM/\/\/ import MLXLLM/' "$f"
-            sed -i.bak 's/^import MLX/\/\/ import MLX/' "$f"
-            sed -i.bak 's/^import HuggingFace/\/\/ import HuggingFace/' "$f"
-            sed -i.bak 's/^import Tokenizers/\/\/ import Tokenizers/' "$f"
-            # Comment out Gemma4Text references
-            sed -i.bak 's/Gemma4Text/\/\/ Gemma4Temp/' "$f"
-            sed -i.bak 's/LocalLLMService/\/\/ LocalLLMService/' "$f"
-            # Comment out LocalModelManagerView references
-            sed -i.bak 's/LocalModelManagerView/\/\/ LocalModelManagerView/' "$f"
-            rm -f "${f}.bak"
-          done
+          # 4. Remove MLX imports from ALL remaining Swift files
+          find OpenGlasses/Sources -name "*.swift" -exec sed -i '' 's/^import MLXLLM/\/\/ import MLXLLM/' {} \;
+          find OpenGlasses/Sources -name "*.swift" -exec sed -i '' 's/^import MLX$/\/\/ import MLX/' {} \;
+          find OpenGlasses/Sources -name "*.swift" -exec sed -i '' 's/^import HuggingFace/\/\/ import HuggingFace/' {} \;
+          find OpenGlasses/Sources -name "*.swift" -exec sed -i '' 's/^import Tokenizers/\/\/ import Tokenizers/' {} \;
+          find OpenGlasses/Sources -name "*.swift" -exec sed -i '' 's/Gemma4Text/\/\/ Gemma4Temp/' {} \;
+          find OpenGlasses/Sources -name "*.swift" -exec sed -i '' 's/LocalLLMService/\/\/ LocalLLMService/' {} \;
+          find OpenGlasses/Sources -name "*.swift" -exec sed -i '' 's/LocalModelManagerView/\/\/ LocalModelManagerView/' {} \;
+          find OpenGlasses/Sources -name "*.swift" -exec sed -i '' 's/AgenticFeaturesView/\/\/ AgenticFeaturesView/' {} \;
+          find OpenGlasses/Sources -name "*.swift" -exec sed -i '' 's/ModelFormView/\/\/ ModelFormView/' {} \;
+          find OpenGlasses/Sources -name "*.swift" -exec sed -i '' 's/AgentScheduler/\/\/ AgentScheduler/' {} \;
+          find OpenGlasses/Sources -name "*.swift" -exec sed -i '' 's/SettingsView/\/\/ SettingsView/' {} \;
+          find OpenGlasses/Sources -name "*.swift" -exec sed -i '' 's/VoiceTab/\/\/ VoiceTab/' {} \;
 
-          echo "Prepared project for remote-only build"
+          echo "=== Verifying removal ==="
+          find . -name "Gemma4Text.swift" -o -name "LocalLLMService.swift" | head -5
+          grep -r "import MLX" OpenGlasses/Sources/ | head -5 || echo "No MLX imports remaining"
+          echo "=== Done ==="
 
       - name: Generate Xcode project
         script: |
