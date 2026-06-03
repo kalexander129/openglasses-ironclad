@@ -115,43 +115,11 @@ workflows:
             --scheme OpenGlasses \
             --archive-xcargs "CODE_SIGN_STYLE=Manual DEVELOPMENT_TEAM="
 
-      - name: Export IPA
-        script: |
-          cd $CM_BUILD_DIR
-          PROFILE_UUID=$(/usr/bin/security cms -D -i ~/Library/MobileDevice/Provisioning\ Profiles/*.mobileprovision 2>/dev/null | grep -A1 UUID | grep -v UUID | head -1 | sed 's/<[^>]*>//g' | tr -d ' \t')
-          echo "Using profile UUID: $PROFILE_UUID"
-          mkdir -p build/IPA
-          cat > build/ExportOptions.plist << PLIST
-          <?xml version="1.0" encoding="UTF-8"?>
-          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-          <plist version="1.0">
-          <dict>
-            <key>method</key>
-            <string>app-store-connect</string>
-            <key>teamID</key>
-            <string>${DEVELOPMENT_TEAM_ID}</string>
-            <key>signingStyle</key>
-            <string>manual</string>
-            <key>provisioningProfiles</key>
-            <dict>
-              <key>com.ironclad.visionclaw</key>
-              <string>${PROFILE_UUID}</string>
-            </dict>
-            <key>uploadBitcode</key>
-            <false/>
-            <key>uploadSymbols</key>
-            <true/>
-          </dict>
-          </plist>
-          PLIST
-          xcodebuild \
-            -exportArchive \
-            -archivePath build/OpenGlasses.xcarchive \
-            -exportOptionsPlist build/ExportOptions.plist \
-            -exportPath build/IPA
+      # xcode-project build-ipa handles both archive and export automatically
+      # No separate export step needed — IPA is at build/ios/ipa/OpenGlasses.ipa
 
     artifacts:
-      - build/IPA/*.ipa
+      - build/ios/ipa/*.ipa
 
     publishing:
       app_store_connect:
