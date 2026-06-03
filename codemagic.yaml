@@ -81,10 +81,10 @@ workflows:
 
       - name: Set up code signing
         script: |
-          # Set up signing profiles — but DON'T force Manual on SPM targets
-          # The project.base.yml already sets CODE_SIGN_STYLE: Automatic
-          # which works for both app and SPM targets
-          xcode-project use-profiles --project $CM_BUILD_DIR/OpenGlasses.xcodeproj
+          # Skip xcode-project use-profiles — it forces Manual signing on ALL targets
+          # including SPM packages, which causes conflicts. Codemagic's ios_signing
+          # config + the project's Automatic signing handle the app target.
+          echo "Skipping use-profiles to avoid SPM signing conflicts"
 
       - name: Set build number
         script: |
@@ -104,8 +104,7 @@ workflows:
             -archivePath build/OpenGlasses.xcarchive \
             -skipMacroValidation \
             archive \
-            DEVELOPMENT_TEAM="${DEVELOPMENT_TEAM_ID}" \
-            CODE_SIGN_IDENTITY="Apple Distribution"
+            DEVELOPMENT_TEAM="${DEVELOPMENT_TEAM_ID}"
 
       - name: Export IPA
         script: |
