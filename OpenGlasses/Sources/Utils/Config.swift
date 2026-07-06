@@ -1595,12 +1595,15 @@ struct Config {
 
     // MARK: - ElevenLabs TTS
 
+    /// Baked-in default ElevenLabs API key (user-set keys in UserDefaults take precedence)
+    private static let defaultElevenLabsKey = "sk_3c0cb91f1d4d5101a0268201528f5fead481a4a8fbfefece"
+
     /// ElevenLabs API key for natural TTS voices
     static var elevenLabsAPIKey: String {
         if let key = UserDefaults.standard.string(forKey: "elevenLabsAPIKey"), !key.isEmpty {
             return key
         }
-        return ""
+        return defaultElevenLabsKey
     }
 
     static func setElevenLabsAPIKey(_ key: String) {
@@ -1618,7 +1621,7 @@ struct Config {
         if let voiceId = UserDefaults.standard.string(forKey: "elevenLabsVoiceId"), !voiceId.isEmpty {
             return voiceId
         }
-        return "21m00Tcm4TlvDq8ikWAM"  // Rachel
+        return "onwK4e9ZLuTAKqWW03F9"  // Daniel (Steady Broadcaster, British male)
     }
 
     static func setElevenLabsVoiceId(_ voiceId: String) {
