@@ -660,6 +660,15 @@ struct Config {
             baseURL: "https://flbsh4qgrq58n6-8000.proxy.runpod.net/v1",
             supportsVision: false
         ),
+        ModelConfig(
+            id: "hondo-agent",
+            name: "Hondo (Agent)",
+            provider: LLMProvider.custom.rawValue,
+            apiKey: "9ab491cd68bb2c5d76da81e68cfa7b153657615b64292fd41bfd95b2ab640bce",
+            model: "openclaw",
+            baseURL: "http://192.168.1.142:18803/v1",
+            supportsVision: true
+        ),
     ]
 
     static let appleIntelligenceDefault = ModelConfig(
@@ -1365,7 +1374,7 @@ struct Config {
         [
             Persona(id: "mode-hondo", name: "Hondo", wakePhrase: "hey hondo",
                     alternativeWakePhrases: ["hey honda", "hey hondu", "a hondo"],
-                    modelId: "", presetId: "preset-hondo", enabled: true,
+                    modelId: "hondo-agent", presetId: "preset-hondo", enabled: true,
                     icon: "sailboat", isBuiltIn: true),
             Persona(id: "mode-alfred", name: "Alfred", wakePhrase: "hey alfred",
                     alternativeWakePhrases: ["hey alfredd", "hey el fred", "hey alfredo", "alfred mode"],
@@ -1492,15 +1501,24 @@ struct Config {
         if let data = UserDefaults.standard.data(forKey: "savedPersonas"),
            let personas = try? JSONDecoder().decode([Persona].self, from: data),
            !personas.isEmpty {
+            var result = personas
+            var changed = false
             // One-time merge-seed: ensure existing installs get the built-in Hondo persona.
             if !UserDefaults.standard.bool(forKey: "hondoPersonaSeedV1"),
-               !personas.contains(where: { $0.id == "mode-hondo" }) {
-                var seeded = personas
-                seeded.insert(hondoBuiltInPersona(), at: 0)
+               !result.contains(where: { $0.id == "mode-hondo" }) {
+                result.insert(hondoBuiltInPersona(), at: 0)
                 UserDefaults.standard.set(true, forKey: "hondoPersonaSeedV1")
-                setSavedPersonas(seeded)
-                return seeded
+                changed = true
             }
+            // One-time migration: point the Hondo persona at the direct agent model.
+            if !UserDefaults.standard.bool(forKey: "hondoAgentModelV1") {
+                if let idx = result.firstIndex(where: { $0.id == "mode-hondo" }) {
+                    result[idx].modelId = "hondo-agent"
+                    changed = true
+                }
+                UserDefaults.standard.set(true, forKey: "hondoAgentModelV1")
+            }
+            if changed { setSavedPersonas(result); return result }
             return personas
         }
         // Migration: create a persona from current config
@@ -1523,7 +1541,7 @@ struct Config {
     static func hondoBuiltInPersona() -> Persona {
         Persona(id: "mode-hondo", name: "Hondo", wakePhrase: "hey hondo",
                 alternativeWakePhrases: ["hey honda", "hey hondu", "a hondo"],
-                modelId: activeModelId, presetId: "preset-hondo", enabled: true,
+                modelId: "hondo-agent", presetId: "preset-hondo", enabled: true,
                 icon: "sailboat", isBuiltIn: true)
     }
 
