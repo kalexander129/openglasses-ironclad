@@ -1621,7 +1621,7 @@ struct Config {
         if let voiceId = UserDefaults.standard.string(forKey: "elevenLabsVoiceId"), !voiceId.isEmpty {
             return voiceId
         }
-        return "onwK4e9ZLuTAKqWW03F9"  // Daniel (Steady Broadcaster, British male)
+        return "JBFqnCBsd6RMkjVDRZzb"  // George (Warm, Captivating Storyteller — British male, Kyle's pick)
     }
 
     static func setElevenLabsVoiceId(_ voiceId: String) {
