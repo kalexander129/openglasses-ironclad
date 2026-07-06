@@ -208,9 +208,13 @@ class OpenClawBridge: ObservableObject {
         disconnectWebSocket()
     }
 
-    /// The active gateway's token, or the legacy token.
+    /// The active gateway's token, falling back to the highest-priority
+    /// enabled gateway's token, then the legacy single-gateway token.
     var activeToken: String {
-        activeGateway?.token ?? Config.openClawGatewayToken
+        if let token = activeGateway?.token, !token.isEmpty {
+            return token
+        }
+        return Config.preferredGatewayToken
     }
 
     /// Check reachability using /health endpoint

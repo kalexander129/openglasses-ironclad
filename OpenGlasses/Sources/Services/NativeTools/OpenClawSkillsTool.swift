@@ -69,7 +69,7 @@ struct OpenClawSkillsTool: NativeTool {
 
         var request = URLRequest(url: url)
         request.httpMethod = "GET"
-        request.setValue("Bearer \(Config.openClawGatewayToken)", forHTTPHeaderField: "Authorization")
+        request.setValue("Bearer \(Config.preferredGatewayToken)", forHTTPHeaderField: "Authorization")
         request.timeoutInterval = 5
 
         do {
@@ -108,7 +108,7 @@ struct OpenClawSkillsTool: NativeTool {
 
         var request = URLRequest(url: url)
         request.httpMethod = "GET"
-        request.setValue("Bearer \(Config.openClawGatewayToken)", forHTTPHeaderField: "Authorization")
+        request.setValue("Bearer \(Config.preferredGatewayToken)", forHTTPHeaderField: "Authorization")
         request.timeoutInterval = 10
 
         do {

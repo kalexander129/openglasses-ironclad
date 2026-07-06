@@ -1874,6 +1874,15 @@ struct Config {
         savedGateways.filter { $0.enabled && $0.isConfigured }
     }
 
+    /// Preferred gateway auth token: highest-priority enabled gateway's token,
+    /// falling back to the legacy single-gateway token.
+    static var preferredGatewayToken: String {
+        if let token = enabledGateways.first?.token, !token.isEmpty {
+            return token
+        }
+        return openClawGatewayToken
+    }
+
     /// Whether any gateway is configured and enabled.
     static var isAnyGatewayConfigured: Bool {
         !enabledGateways.isEmpty || isOpenClawConfigured

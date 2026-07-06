@@ -184,7 +184,7 @@ class OpenClawEventClient {
     }
 
     private func sendConnectHandshake(nonce: String) {
-        let token = Config.openClawGatewayToken
+        let token = Self.activeGateway()?.token ?? Config.preferredGatewayToken
         let device = OpenClawDeviceIdentity.deviceConnectParams(
             clientId: "gateway-client",
             clientMode: "node",
