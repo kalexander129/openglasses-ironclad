@@ -396,7 +396,7 @@ struct Config {
         if let phrase = UserDefaults.standard.string(forKey: "wakePhrase"), !phrase.isEmpty {
             return phrase.lowercased()
         }
-        return "hey openglasses"
+        return "hey hondo"
     }
 
     static func setWakePhrase(_ phrase: String) {
@@ -432,6 +432,8 @@ struct Config {
             return ["hey ray ban", "hey ray-ban", "hey raven", "hey rayben", "hey ray band"]
         case "hey openglasses":
             return ["hey open glasses", "hey open glass", "hey openclass", "hey open class", "hey openglass"]
+        case "hey hondo":
+            return ["hey honda", "hey hondu", "a hondo"]
         default:
             return []
         }
@@ -456,7 +458,7 @@ struct Config {
     static let claudeModel = "claude-sonnet-4-20250514"
 
     /// Max tokens for LLM response
-    static let maxTokens = 500
+    static let maxTokens = 1024
 
     // MARK: - OpenAI-compatible
 
@@ -535,7 +537,7 @@ struct Config {
         var fallbackKeywords: [String] {
             switch self {
             case .fast: return ["haiku", "flash", "mini", "4o-mini", "gpt-4o-mini", "llama", "mixtral"]
-            case .balanced: return ["sonnet", "gpt-4o", "gemini-pro", "gemini-2", "vl-72b", "vl72b"]
+            case .balanced: return ["sonnet", "gpt-4o", "gemini-pro", "gemini-2", "vl-72b", "vl72b", "vl-30b", "vl30b"]
             case .best: return ["opus", "o3", "o1", "pro", "gpt-4-turbo", "glm-5.1", "glm51"]
             }
         }
@@ -626,6 +628,13 @@ struct Config {
                 models[i].name = "Qwen (Subscription)"
                 needsSave = true
             }
+            // Migrate dead VL-72B endpoint to VL-30B on Spark #5
+            if models[i].id == "local-vl72b" && models[i].baseURL.contains("192.168.1.136") {
+                models[i].name = "VL-30B (Vision)"
+                models[i].model = "vl-30b"
+                models[i].baseURL = "http://192.168.1.142:8000/v1"
+                needsSave = true
+            }
         }
         if needsSave { setSavedModels(models) }
         return models
@@ -635,11 +644,11 @@ struct Config {
     static let localModelDefaults: [ModelConfig] = [
         ModelConfig(
             id: "local-vl72b",
-            name: "VL-72B (Vision)",
+            name: "VL-30B (Vision)",
             provider: LLMProvider.custom.rawValue,
             apiKey: "local",
-            model: "vl-72b",
-            baseURL: "http://192.168.1.136:8000/v1",
+            model: "vl-30b",
+            baseURL: "http://192.168.1.142:8000/v1",
             supportsVision: true
         ),
         ModelConfig(
@@ -1766,10 +1775,50 @@ struct Config {
                 NSLog("[Config] Migrated legacy OpenClaw config to gateway system")
                 return [legacy]
             }
-            return []
+            // Fresh install: seed Hondo gateway as the default
+            let hondo = GatewayConfig(
+                id: "hondo-gateway",
+                name: "Hondo",
+                provider: GatewayProvider.openclaw.rawValue,
+                lanHost: "http://192.168.1.142",
+                port: 18803,
+                tunnelHost: "",
+                token: "9ab491cd68bb2c5d76da81e68cfa7b153657615b64292fd41bfd95b2ab640bce",
+                connectionMode: "lan",
+                enabled: true,
+                priority: 0
+            )
+            setSavedGateways([hondo])
+            return [hondo]
         }
         var sorted = gateways.sorted { $0.priority < $1.priority }
-        // Auto-seed Alfred gateway if not present
+        var changed = false
+        // Auto-seed Hondo gateway if not present (top priority)
+        if !sorted.contains(where: { $0.id == "hondo-gateway" }) {
+            let hondo = GatewayConfig(
+                id: "hondo-gateway",
+                name: "Hondo",
+                provider: GatewayProvider.openclaw.rawValue,
+                lanHost: "http://192.168.1.142",
+                port: 18803,
+                tunnelHost: "",
+                token: "9ab491cd68bb2c5d76da81e68cfa7b153657615b64292fd41bfd95b2ab640bce",
+                connectionMode: "lan",
+                enabled: true,
+                priority: 0
+            )
+            sorted.insert(hondo, at: 0)
+            changed = true
+        }
+        // One-time migration: disable the Alfred gateway so traffic defaults to Hondo
+        if !UserDefaults.standard.bool(forKey: "hondoSeedV1") {
+            for i in sorted.indices where sorted[i].id == "alfred-gateway" {
+                sorted[i].enabled = false
+                changed = true
+            }
+            UserDefaults.standard.set(true, forKey: "hondoSeedV1")
+        }
+        // Auto-seed Alfred gateway if not present (disabled by default)
         if !sorted.contains(where: { $0.name == "Alfred" || $0.lanHost.contains("192.168.1.132") }) {
             let alfred = GatewayConfig(
                 id: "alfred-gateway",
@@ -1780,10 +1829,13 @@ struct Config {
                 tunnelHost: "",
                 token: "ef54338db231cbb6814f33b5adab687987494ed285fca503",
                 connectionMode: "lan",
-                enabled: true,
-                priority: 0
+                enabled: false,
+                priority: 1
             )
             sorted.append(alfred)
+            changed = true
+        }
+        if changed {
             setSavedGateways(sorted)
         }
         return sorted
