@@ -38,7 +38,7 @@ enum ResolvedConnection: Equatable {
 // MARK: - OpenClaw Bridge
 
 /// Client for the OpenClaw gateway. Uses /health for status checks and
-/// WebSocket protocol v3 (sessions.send) for chat / task delegation.
+/// WebSocket protocol v4 (sessions.send) for chat / task delegation.
 @MainActor
 class OpenClawBridge: ObservableObject {
     @Published var lastToolCallStatus: ToolCallStatus = .idle
@@ -305,7 +305,7 @@ class OpenClawBridge: ObservableObject {
         config.timeoutIntervalForRequest = 30
         wsSession = URLSession(configuration: config)
 
-        // Build request with X-Scopes header (OpenClaw protocol v3 requirement)
+        // Build request with X-Scopes header
         var request = URLRequest(url: url)
         request.setValue("chat,skills,sessions,config,tools", forHTTPHeaderField: "X-Scopes")
         webSocketTask = wsSession?.webSocketTask(with: request)
@@ -322,8 +322,8 @@ class OpenClawBridge: ObservableObject {
             "id": connectId,
             "method": "connect",
             "params": [
-                "minProtocol": 3,
-                "maxProtocol": 3,
+                "minProtocol": 4,
+                "maxProtocol": 4,
                 "client": [
                     "id": "gateway-client",
                     "displayName": "OpenGlasses",
@@ -408,9 +408,29 @@ class OpenClawBridge: ObservableObject {
                                 self.sessionCompacted = true
                                 NSLog("[OpenClaw] Session compacted by gateway")
                             }
+                        case "chat":
+                            // Protocol v4 chat stream — delta payloads carry `deltaText`
+                            if (payload["state"] as? String) == "delta" {
+                                let replace = payload["replace"] as? Bool ?? false
+                                let chunk = payload["deltaText"] as? String
+                                    ?? payload["content"] as? String
+                                    ?? ""
+                                if replace {
+                                    // Non-prefix replacement — already-spoken text can't be retracted,
+                                    // so skip streaming; the final result arrives via the sessions.send response
+                                    NSLog("[OpenClaw] Chat delta replace=true (%d chars) — skipping stream chunk", chunk.count)
+                                } else if !chunk.isEmpty {
+                                    await MainActor.run {
+                                        self.onStreamChunk?(chunk)
+                                    }
+                                }
+                            }
                         case "session.chunk", "stream.chunk":
-                            // Streaming partial result — forward to TTS for early speech
-                            if let chunk = payload["content"] as? String, !chunk.isEmpty {
+                            // Legacy (v3) streaming partial result — forward to TTS for early speech
+                            let chunk = payload["deltaText"] as? String
+                                ?? payload["content"] as? String
+                                ?? ""
+                            if !chunk.isEmpty {
                                 await MainActor.run {
                                     self.onStreamChunk?(chunk)
                                 }
