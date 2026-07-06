@@ -845,6 +845,7 @@ struct Config {
             return chineseBuiltInPresets()
         }
         return [
+            PromptPreset(id: "preset-hondo", name: "Hondo", prompt: "You are Hondo, a voice assistant on smart glasses. Be direct and concise - max 3 sentences. No markdown. You can see via camera. A dash of pirate charm, but helpfulness first.", isBuiltIn: true, icon: "sailboat", cameraBehavior: "smart"),
             PromptPreset(id: "preset-alfred", name: "Alfred", prompt: "You are Alfred, a voice assistant on smart glasses. Be direct and concise - max 3 sentences. No markdown. You can see via camera. Help with whatever is asked.", isBuiltIn: true, icon: "hat.top", cameraBehavior: "smart"),
             PromptPreset(id: "preset-default", name: "Default", prompt: defaultSystemPrompt, isBuiltIn: true),
             PromptPreset(id: "preset-tokens", name: "Tokens Saver", prompt: """
@@ -1362,6 +1363,10 @@ struct Config {
     /// Each template uses `activeModelId` so it works with whatever model the user has configured.
     static func builtInPersonaTemplates() -> [Persona] {
         [
+            Persona(id: "mode-hondo", name: "Hondo", wakePhrase: "hey hondo",
+                    alternativeWakePhrases: ["hey honda", "hey hondu", "a hondo"],
+                    modelId: "", presetId: "preset-hondo", enabled: true,
+                    icon: "sailboat", isBuiltIn: true),
             Persona(id: "mode-alfred", name: "Alfred", wakePhrase: "hey alfred",
                     alternativeWakePhrases: ["hey alfredd", "hey el fred", "hey alfredo", "alfred mode"],
                     modelId: "", presetId: "preset-alfred", enabled: true,
@@ -1487,6 +1492,15 @@ struct Config {
         if let data = UserDefaults.standard.data(forKey: "savedPersonas"),
            let personas = try? JSONDecoder().decode([Persona].self, from: data),
            !personas.isEmpty {
+            // One-time merge-seed: ensure existing installs get the built-in Hondo persona.
+            if !UserDefaults.standard.bool(forKey: "hondoPersonaSeedV1"),
+               !personas.contains(where: { $0.id == "mode-hondo" }) {
+                var seeded = personas
+                seeded.insert(hondoBuiltInPersona(), at: 0)
+                UserDefaults.standard.set(true, forKey: "hondoPersonaSeedV1")
+                setSavedPersonas(seeded)
+                return seeded
+            }
             return personas
         }
         // Migration: create a persona from current config
@@ -1499,9 +1513,18 @@ struct Config {
             presetId: activePresetId,
             enabled: true
         )
-        let personas = [migrated]
+        let personas = [hondoBuiltInPersona(), migrated]
+        UserDefaults.standard.set(true, forKey: "hondoPersonaSeedV1")
         setSavedPersonas(personas)
         return personas
+    }
+
+    /// Built-in Hondo persona (seeded into both fresh installs and existing installs).
+    static func hondoBuiltInPersona() -> Persona {
+        Persona(id: "mode-hondo", name: "Hondo", wakePhrase: "hey hondo",
+                alternativeWakePhrases: ["hey honda", "hey hondu", "a hondo"],
+                modelId: activeModelId, presetId: "preset-hondo", enabled: true,
+                icon: "sailboat", isBuiltIn: true)
     }
 
     static func setSavedPersonas(_ personas: [Persona]) {
