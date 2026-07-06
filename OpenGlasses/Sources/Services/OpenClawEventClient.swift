@@ -153,8 +153,11 @@ class OpenClawEventClient {
             } else {
                 let error = json["error"] as? [String: Any]
                 let msg = error?["message"] as? String ?? "unknown"
-                let code = error?["code"] as? Int
-                NSLog("[OpenClawWS] Connect failed: %@ (code: %@, full response: %@)", msg, code.map { "\($0)" } ?? "nil", text)
+                if OpenClawDeviceIdentity.isPairingPending(json) {
+                    NSLog("[OpenClawWS] Awaiting pairing approval on gateway — will retry via reconnect backoff")
+                } else {
+                    NSLog("[OpenClawWS] Connect failed: %@ (full response: %@)", msg, text)
+                }
             }
         }
     }
@@ -165,7 +168,12 @@ class OpenClawEventClient {
 
         switch event {
         case "connect.challenge":
-            sendConnectHandshake()
+            let nonce = (payload["nonce"] as? String)?.trimmingCharacters(in: .whitespaces) ?? ""
+            guard !nonce.isEmpty else {
+                NSLog("[OpenClawWS] connect.challenge missing nonce")
+                return
+            }
+            sendConnectHandshake(nonce: nonce)
         case "heartbeat":
             handleHeartbeatEvent(payload)
         case "cron":
@@ -175,7 +183,17 @@ class OpenClawEventClient {
         }
     }
 
-    private func sendConnectHandshake() {
+    private func sendConnectHandshake(nonce: String) {
+        let token = Config.openClawGatewayToken
+        let device = OpenClawDeviceIdentity.deviceConnectParams(
+            clientId: "gateway-client",
+            clientMode: "node",
+            role: "node",
+            scopes: [],
+            token: token,
+            nonce: nonce,
+            platform: "ios"
+        )
         let connectMsg: [String: Any] = [
             "type": "req",
             "id": UUID().uuidString,
@@ -190,9 +208,12 @@ class OpenClawEventClient {
                     "platform": "ios",
                     "mode": "node"
                 ] as [String: Any],
+                "role": "node",
+                "scopes": [] as [String],
                 "auth": [
-                    "token": Config.openClawGatewayToken
-                ]
+                    "token": token
+                ],
+                "device": device
             ] as [String: Any]
         ]
 

@@ -311,12 +311,24 @@ class OpenClawBridge: ObservableObject {
         webSocketTask = wsSession?.webSocketTask(with: request)
         webSocketTask?.resume()
 
-        // Wait for connect.challenge
+        // Wait for connect.challenge and capture the nonce (required for device identity)
         let challengeMsg = try await receiveMessage()
         NSLog("[OpenClaw] WS received: %@", String(challengeMsg.prefix(100)))
+        guard let nonce = OpenClawDeviceIdentity.challengeNonce(from: challengeMsg) else {
+            throw NSError(domain: "OpenClaw", code: -3, userInfo: [NSLocalizedDescriptionKey: "Gateway connect challenge missing nonce"])
+        }
 
-        // Send connect handshake — register as "node" with device capabilities
+        // Send connect handshake — register as "node" with signed device identity
         let connectId = UUID().uuidString
+        let device = OpenClawDeviceIdentity.deviceConnectParams(
+            clientId: "gateway-client",
+            clientMode: "node",
+            role: "node",
+            scopes: [],
+            token: token,
+            nonce: nonce,
+            platform: "ios"
+        )
         let connectMsg: [String: Any] = [
             "type": "req",
             "id": connectId,
@@ -331,9 +343,12 @@ class OpenClawBridge: ObservableObject {
                     "platform": "ios",
                     "mode": "node"
                 ] as [String: Any],
+                "role": "node",
+                "scopes": [] as [String],
                 "auth": [
                     "token": token
-                ]
+                ],
+                "device": device
             ] as [String: Any]
         ]
 
@@ -357,6 +372,12 @@ class OpenClawBridge: ObservableObject {
             onGatewayConnected?()
         } else {
             NSLog("[OpenClaw] WS connect failed: %@", String(response.prefix(300)))
+            if let data = response.data(using: .utf8),
+               let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+               OpenClawDeviceIdentity.isPairingPending(json) {
+                connectionState = .unreachable("Awaiting pairing approval on gateway")
+                throw NSError(domain: "OpenClaw", code: -4, userInfo: [NSLocalizedDescriptionKey: "Awaiting pairing approval — ask the gateway operator to approve this device"])
+            }
             throw NSError(domain: "OpenClaw", code: -2, userInfo: [NSLocalizedDescriptionKey: "WebSocket auth failed: \(String(response.prefix(200)))"])
         }
     }
