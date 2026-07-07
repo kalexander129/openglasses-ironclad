@@ -14,7 +14,7 @@ workflows:
       vars:
         SCHEME: OpenGlasses
         DEVELOPMENT_TEAM_ID: "VLYY93HRG2"
-        BUILD_NUMBER: "17"
+        BUILD_NUMBER: "18"
         ALFRED_GATEWAY_URL: "http://192.168.1.132:18789"
         OPENCLAW_HOST: "http://192.168.1.132"
         OPENCLAW_PORT: "18789"
@@ -41,7 +41,7 @@ workflows:
 
       - name: Download Metal Toolchain
         script: |
-          # Xcode 26 unbundled the Metal shader compiler — must download separately
+          # Xcode 26 unbundled the Metal shader compiler - must download separately
           xcodebuild -downloadComponent MetalToolchain
 
       - name: Trust Swift Macros (CI workaround)
@@ -69,7 +69,7 @@ workflows:
       - name: Generate Xcode project
         script: |
           cd $CM_BUILD_DIR
-          # Remove widget target entirely from project.base.yml — no profile for it
+          # Remove widget target entirely from project.base.yml - no profile for it
           python3 << 'PYEOF'
           import re
           with open('project.base.yml') as f:
@@ -116,7 +116,7 @@ workflows:
             --archive-xcargs "CODE_SIGN_STYLE=Manual DEVELOPMENT_TEAM="
 
       # xcode-project build-ipa handles both archive and export automatically
-      # No separate export step needed — IPA is at build/ios/ipa/OpenGlasses.ipa
+      # No separate export step needed - IPA is at build/ios/ipa/OpenGlasses.ipa
 
     artifacts:
       - build/ios/ipa/*.ipa
@@ -131,3 +131,4 @@ workflows:
         notify:
           success: true
           failure: true
+

@@ -1149,8 +1149,29 @@ class AppState: ObservableObject, AppStateProtocol {
                     self.addDebugEvent("SDK auto-reconnected to state \(settledState.rawValue)")
                     await requestEarlyPermission()
                 } else {
+                // Build 18: Auto-start registration so Meta AI app shows camera permission toggle.
+                self.addDebugEvent("State \(settledState.rawValue) - auto-starting registration")
+                do {
+                    try await Wearables.shared.startRegistration()
+                    var regState = Wearables.shared.registrationState
+                    let regDeadline = ContinuousClock.now + .seconds(15)
+                    while regState.rawValue < 3, ContinuousClock.now < regDeadline {
+                        self.registrationStateRaw = regState.rawValue
+                        try? await Task.sleep(nanoseconds: 500_000_000)
+                        regState = Wearables.shared.registrationState
+                    }
+                    self.registrationStateRaw = regState.rawValue
+                    if regState.rawValue >= 3 {
+                        self.hasEverRegistered = true
+                        self.addDebugEvent("Auto-registration succeeded, state \(regState.rawValue)")
+                        await requestEarlyPermission()
+                    } else {
+                        self.isConnected = false
+                        self.addDebugEvent("Auto-registration pending (state \(regState.rawValue)) - complete in Meta AI app")
+                    }
+                } catch {
                     self.isConnected = false
-                    self.addDebugEvent("State \(settledState.rawValue) — tap Connect to register")
+                    self.addDebugEvent("Auto-registration failed: \(error.localizedDescription)")
                 }
             }
         }
@@ -1915,6 +1936,11 @@ class AppState: ObservableObject, AppStateProtocol {
             lastSmartCameraActivation = Date()
             return existing
         }
+        // Build 18: If glasses not connected, use phone-camera fallback for vision queries.
+        if !isConnected {
+            return await phoneCameraFallbackCapture(for: query)
+        }
+
 
         // Check camera behavior from active preset
         let cameraBehavior = Config.activePresetCameraBehavior
@@ -1941,6 +1967,44 @@ class AppState: ObservableObject, AppStateProtocol {
 
         lastSmartCameraActivation = Date()
         return await smartCameraCapture(reason: "vision query detected")
+    }
+
+    /// Build 18: Phone-camera fallback for vision queries when glasses are not connected.
+    /// Captures a single photo using the iPhone camera and returns JPEG data.
+    private func phoneCameraFallbackCapture(for query: String) async -> Data? {
+        // Only activate for vision-related queries
+        let intent = VisionIntentDetector.classify(query)
+        guard intent == .vision else { return nil }
+
+        let cameraBehavior = Config.activePresetCameraBehavior
+        guard Config.smartCameraEnabled || cameraBehavior == "always" || cameraBehavior == "smart" else { return nil }
+
+        lastSmartCameraActivation = Date()
+        addDebugEvent("Phone-camera fallback: capturing for vision query")
+
+        return await withCheckedContinuation { continuation in
+            let session = AVCaptureSession()
+            session.sessionPreset = .photo
+
+            guard let device = AVCaptureDevice.default(for: .video),
+                  let input = try? AVCaptureDeviceInput(device: device) else {
+                continuation.resume(returning: nil)
+                return
+            }
+            session.addInput(input)
+
+            let output = AVCapturePhotoOutput()
+            session.addOutput(output)
+
+            let queue = DispatchQueue(label: "openglasses.phone-camera-fallback")
+            session.startRunning()
+
+            DispatchQueue.global().asyncAfter(deadline: .now() + 0.5) {
+                let settings = AVCapturePhotoSettings()
+                settings.flashMode = .auto
+                output.capturePhoto(with: settings, delegate: PhoneCameraFallbackDelegate(continuation: continuation, session: session))
+            }
+        }
     }
 
     /// Attempt to activate the camera and capture a frame for smart camera.
@@ -2066,6 +2130,11 @@ class AppState: ObservableObject, AppStateProtocol {
         // Voice command: "take a picture" — capture photo from glasses camera
         if isPhotoCommand(text) {
             print("📸 Voice command: take a picture")
+            // Build 18: Fall back to phone camera if glasses not connected
+            if !isConnected {
+                presentPhoneCamera(prompt: query, userLog: "[Phone photo] \(query)")
+                return
+            }
             isProcessing = true
             // Start capture immediately — play the shutter tone, no spoken "taking a picture"
             speechService.playAcknowledgmentTone()
@@ -2727,5 +2796,30 @@ struct NowPlayingSnapshot {
         if let a = artist { parts.append("artist: \"\(a)\"") }
         if let al = albumTitle, al != title { parts.append("album: \"\(al)\"") }
         return "NOW PLAYING (paused when user spoke): \(parts.joined(separator: ", ")). If the user asks about the song, podcast, or what was playing, you already know this."
+    }
+}
+
+
+
+// MARK: - Phone Camera Fallback Delegate (Build 18)
+
+private class PhoneCameraFallbackDelegate: NSObject, AVCapturePhotoCaptureDelegate {
+    let continuation: CheckedContinuation<Data?, Never>
+    let session: AVCaptureSession
+
+    init(continuation: CheckedContinuation<Data?, Never>, session: AVCaptureSession) {
+        self.continuation = continuation
+        self.session = session
+    }
+
+    func photoOutput(_ output: AVCapturePhotoOutput, didFinishProcessingPhoto photo: AVCapturePhoto, error: Error?) {
+        session.stopRunning()
+        if let error = error {
+            NSLog("[PhoneCameraFallback] Capture error: %@", error.localizedDescription)
+            continuation.resume(returning: nil)
+            return
+        }
+        let data = photo.fileDataRepresentation()
+        continuation.resume(returning: data)
     }
 }
