@@ -776,6 +776,22 @@ class AppState: ObservableObject, AppStateProtocol {
                 await self.triageOpenClawNotification(message)
             }
         }
+        // OpenClaw node camera — lets the agent (Hondo) take a photo/clip through the
+        // glasses (DAT camera) with iPhone fallback via `nodes camera_snap` / `camera_clip`.
+        // Privacy rule: every agent-initiated capture is announced (speech + on-screen
+        // status + shutter sound in the event client). No silent capture, ever.
+        openClawEventClient.cameraSnap = { [weak self] in
+            guard let self else { throw CameraError.captureFailed }
+            return try await self.cameraService.capturePhoto()
+        }
+        openClawEventClient.onAgentCapture = { [weak self] text in
+            guard let self else { return }
+            Task { @MainActor in
+                self.lastResponse = text
+                await self.speechService.speak(text)
+            }
+        }
+
         // Sync gateway memories when OpenClaw connects
         openClawBridge.onGatewayConnected = { [weak self] in
             guard let self else { return }
