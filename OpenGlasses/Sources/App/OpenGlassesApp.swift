@@ -1173,6 +1173,7 @@ class AppState: ObservableObject, AppStateProtocol {
                     self.isConnected = false
                     self.addDebugEvent("Auto-registration failed: \(error.localizedDescription)")
                 }
+                }
             }
         }
     }
